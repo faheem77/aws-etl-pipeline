@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+crawl4ai = "==0.4.247"
+python-dotenv = "==1.0.1"
+pydantic = "==2.10.6"
+
+[dev-packages]
+
+[requires]
+python_version = "3.11"
