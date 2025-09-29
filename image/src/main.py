@@ -10,7 +10,7 @@ from elasticsearch import Elasticsearch, exceptions
 from elasticsearch import helpers
 from snowflake.connector.pandas_tools import write_pandas
 
-from image.src.data_wrangling import (
+from data_wrangling import (
     column_rename,
     change_status,
     parse_name,
@@ -27,7 +27,7 @@ config = configparser.ConfigParser()
 config.read("config.ini")
 
 class SnowflakeConnector:
-    def __init__(self, config):
+    def __init__(self):
         self.sf_cfg = config["snowflake"]
         self.conn = None
         self.cursor = None
@@ -140,7 +140,7 @@ class SnowflakeConnector:
 
 
 class ElasticClient:
-    def __init__(self, config_path="config.ini"):
+    def __init__(self):
         # Load config
         es_cfg = config["elasticsearch"]
         self.index_name = 'property-data-standardized'
@@ -172,35 +172,55 @@ class ElasticClient:
         else:
             print("⚠️ No data to push")
 
-s3_client = boto3.client("s3")
+
+
+def process_file(bucket_name: str, object_key: str) -> pd.DataFrame:
+    """Download CSV from S3 and return transformed DataFrame"""
+    s3_client = boto3.client("s3")
+    response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+    file_content = response["Body"].read()
+
+    df = pd.read_csv(io.BytesIO(file_content))
+
+    # Apply transformations
+    df = (
+        df.pipe(column_rename)
+          .pipe(change_status)
+          .pipe(parse_name)
+          .pipe(transform_open_house)
+          .pipe(generate_full_address)
+          .pipe(split_emails)
+          .pipe(generate_transaction_id)
+          .pipe(clean_phone_numbers, "presented_by_mobile")
+          .pipe(clean_columns)
+    )
+
+    return df
+
+
+def push_to_targets(df: pd.DataFrame):
+    """Push DataFrame to Snowflake and Elasticsearch"""
+    sf = SnowflakeConnector()
+    sf.connect()
+    sf.load_dataframe(df)
+
+    es = ElasticClient()
+    es.push_dataframe(df)
+
 
 def lambda_handler(event, context):
-    for record in event["Records"]:
+    """AWS Lambda entrypoint"""
+    for record in event.get("Records", []):
         bucket_name = record["s3"]["bucket"]["name"]
         object_key = record["s3"]["object"]["key"]
-        
-        # Only process files in specific prefix
-        if not object_key.endswith(".csv"):
-            print(f"Skipping file: {object_key}")
-            continue
-        
-        print(f"Processing file: s3://{bucket_name}/{object_key}")
 
-        # 2. Read the CSV file from S3
-        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
-        file_content = response["Body"].read()
-        df = pd.read_csv(io.BytesIO(file_content))
-        sf = SnowflakeConnector(config)
-        sf.connect()
-        df = column_rename(df)
-        df = change_status(df)
-        df = parse_name(df)
-        df = transform_open_house(df)
-        df = generate_full_address(df)
-        df = split_emails(df)
-        df = generate_transaction_id(df)
-        df = clean_phone_numbers(df, "presented_by_mobile")
-        es= ElasticClient()
-        df = clean_columns(df)
-        sf.load_dataframe(df)
-        es.push_dataframe(df)
+        if not object_key.endswith(".csv"):
+            print(f"⚠️ Skipping non-CSV file: {object_key}")
+            continue
+
+        print(f"📂 Processing file: s3://{bucket_name}/{object_key}")
+
+        df = process_file(bucket_name, object_key)
+        push_to_targets(df)  
+
+    return {"statusCode": 200, "body": json.dumps("Processing complete ✅")}
