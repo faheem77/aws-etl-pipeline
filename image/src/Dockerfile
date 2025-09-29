@@ -15,7 +15,7 @@ RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
 # Copy source code
-COPY src/* ${LAMBDA_TASK_ROOT}/
+COPY . ${LAMBDA_TASK_ROOT}/
 
 # Command for Lambda
 CMD ["main.lambda_handler"]
