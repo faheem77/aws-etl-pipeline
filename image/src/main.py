@@ -179,7 +179,6 @@ def process_file(bucket_name: str, object_key: str) -> pd.DataFrame:
     s3_client = boto3.client("s3")
     response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
     file_content = response["Body"].read()
-
     df = pd.read_csv(io.BytesIO(file_content))
 
     # Apply transformations
