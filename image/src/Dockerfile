@@ -1,12 +1,15 @@
 FROM public.ecr.aws/lambda/python:3.11
 
-# Copy requirements and install Python deps
-COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel
-RUN pip install -r requirements.txt
+# Install build tools
+RUN yum install -y gcc g++ make cmake libpq-devel libffi-devel openssl-devel git \
+    && yum clean all
 
-# Copy source code
+# Copy everything at once
 COPY . ${LAMBDA_TASK_ROOT}/
 
-# Command for Lambda
+# Install Python deps
+RUN pip install --upgrade pip setuptools wheel
+RUN pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt
+
+# Lambda handler
 CMD ["main.lambda_handler"]

@@ -218,8 +218,15 @@ def lambda_handler(event, context):
             continue
 
         print(f"📂 Processing file: s3://{bucket_name}/{object_key}")
-
-        df = process_file(bucket_name, object_key)
-        push_to_targets(df)  
+        try:
+            df = process_file(bucket_name, object_key)
+            push_to_targets(df)
+            print(f"✅ Successfully processed {object_key}")
+        except Exception as e:
+            import traceback
+            print(f"❌ Error processing {object_key}: {e}")
+            traceback.print_exc()
+           
 
     return {"statusCode": 200, "body": json.dumps("Processing complete ✅")}
+

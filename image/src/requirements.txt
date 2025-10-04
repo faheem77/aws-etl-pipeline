@@ -10,6 +10,9 @@ elastic-transport==9.1.0
 elasticsearch==9.1.1
 filelock==3.19.1
 idna==3.10
+pandas==2.2.2
+numpy==1.26.4
+pyarrow==15.0.2
 jmespath==1.0.1
 packaging==25.0
 platformdirs==4.4.0
